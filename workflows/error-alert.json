@@ -1,0 +1,48 @@
+{
+  "id": "LibraErrorAlert1",
+  "name": "Libra — Alert admin when a workflow fails",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "America/Bogota" },
+  "nodes": [
+    {
+      "id": "5d6e7f80-1a2b-4c3d-9e4f-5a6b7c8d0001",
+      "name": "Workflow failed",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "5d6e7f80-1a2b-4c3d-9e4f-5a6b7c8d0002",
+      "name": "Build alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const { execution, workflow } = $json;\nconst error = execution?.error ?? {};\nconst subject = `🚨 Falló \"${workflow?.name ?? 'workflow'}\" en n8n`;\nconst html = `<p>El workflow <b>${workflow?.name}</b> falló.</p>\n<ul>\n<li>Nodo: <b>${execution?.lastNodeExecuted ?? '—'}</b></li>\n<li>Error: ${error.message ?? '—'}</li>\n<li>Ejecución: ${execution?.url ? `<a href=\"${execution.url}\">${execution.id}</a>` : execution?.id ?? '—'}</li>\n</ul>\n<p style=\"color:#666\">Alerta automática de Libra · n8n</p>`;\nreturn { json: { to: $env.ADMIN_EMAIL, subject, html } };"
+      }
+    },
+    {
+      "id": "5d6e7f80-1a2b-4c3d-9e4f-5a6b7c8d0003",
+      "name": "Email admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [480, 0],
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": { "appendAttribution": false }
+      },
+      "credentials": { "smtp": { "id": "LibraSmtp0000001", "name": "SMTP" } }
+    }
+  ],
+  "connections": {
+    "Workflow failed": { "main": [[{ "node": "Build alert", "type": "main", "index": 0 }]] },
+    "Build alert": { "main": [[{ "node": "Email admin", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}
+}

@@ -1,0 +1,99 @@
+{
+  "id": "LibraWeeklyRpt01",
+  "name": "Libra — Weekly sales report per seller",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "LibraErrorAlert1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0001",
+      "name": "Every Monday 8:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, -100],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1" }] }
+      }
+    },
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0002",
+      "name": "Run now (test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 100],
+      "parameters": {}
+    },
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0003",
+      "name": "Sales of the last 7 days",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [260, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One row per seller and currency with last week's order funnel and top products.\nwith week as (\n  select * from public.orders where created_at >= now() - interval '7 days'\n), top as (\n  select o.seller_id, o.currency, p.name_es as name, sum(oi.quantity) as quantity,\n         row_number() over (partition by o.seller_id, o.currency order by sum(oi.quantity) desc) as rank\n  from week o\n  join public.order_items oi on oi.order_id = o.id\n  join public.products p on p.id = oi.product_id\n  group by o.seller_id, o.currency, p.name_es\n)\nselect s.email as seller_email,\n       coalesce(s.display_name, s.email) as seller_name,\n       w.currency,\n       count(*)::int as orders,\n       (count(*) filter (where w.payment_status = 'approved'))::int as approved,\n       (count(*) filter (where w.payment_status in ('pending_verification', 'evidence_requested')))::int as to_review,\n       (count(*) filter (where w.payment_status in ('pending', 'awaiting_payment')))::int as awaiting_payment,\n       (count(*) filter (where w.payment_status in ('rejected', 'expired')))::int as lost,\n       coalesce(sum(w.total) filter (where w.payment_status = 'approved'), 0)::int as revenue,\n       coalesce((select json_agg(json_build_object('name', t.name, 'quantity', t.quantity) order by t.rank)\n                 from top t where t.seller_id = s.id and t.currency = w.currency and t.rank <= 3), '[]') as top_products\nfrom week w\njoin public.user_profiles s on s.id = w.seller_id\ngroup by s.id, w.currency;",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "LibraDbDev000001", "name": "Libra DB (dev)" } }
+    },
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0004",
+      "name": "AI summary (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 0],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: 'Eres el asistente de ventas de Libra, un marketplace para comunidades en Colombia. Escribe en español, tono cercano y concreto, máximo 3 frases, sin saludo ni despedida, sin inventar datos: un resumen de la semana del vendedor y una sugerencia accionable. Datos (montos en ' + $json.currency + '): ' + JSON.stringify({ pedidos: $json.orders, aprobados: $json.approved, por_revisar: $json.to_review, esperando_pago: $json.awaiting_payment, perdidos: $json.lost, ingresos_aprobados: $json.revenue, mas_vendidos: $json.top_products }) }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 200 } }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "GeminiApiKey0001", "name": "Gemini API key" } }
+    },
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0005",
+      "name": "Build report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 0],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Stats come from the query; the AI text is optional (the report goes out without it).\nconst stats = $('Sales of the last 7 days').item.json;\nconst summary = $json?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('').trim();\nconst money = (amount) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: stats.currency, minimumFractionDigits: 0 }).format(amount);\n\nconst cards = [\n  ['Pedidos', stats.orders],\n  ['Aprobados', stats.approved],\n  ['Por revisar', stats.to_review],\n  ['Esperando pago', stats.awaiting_payment],\n  ['Perdidos', stats.lost],\n]\n  .map(([label, value]) => `<td align=\"center\" style=\"padding:8px 14px\"><div style=\"font-size:22px\"><b>${value}</b></div><div style=\"color:#666\">${label}</div></td>`)\n  .join('');\n\nconst top = stats.top_products.length\n  ? `<ol>${stats.top_products.map((p) => `<li>${p.name} — ${p.quantity} und.</li>`).join('')}</ol>`\n  : '<p>Sin ventas esta semana.</p>';\n\nconst html = `<p>Hola ${stats.seller_name},</p>\n<p>Así le fue a tu tienda en Libra en los últimos 7 días:</p>\n<table style=\"border-collapse:collapse\" border=\"1\"><tr>${cards}</tr></table>\n<p>Ingresos aprobados: <b>${money(stats.revenue)}</b></p>\n<h3>Más vendidos</h3>${top}\n${summary ? `<h3>💡 Resumen</h3><p>${summary}</p><p style=\"color:#888;font-size:12px\">Resumen generado con IA a partir de tus números.</p>` : ''}\n<p style=\"color:#666\">Reporte automático de Libra.</p>`;\n\nreturn { json: { to: stats.seller_email, subject: `📊 Tu semana en Libra: ${stats.orders} pedidos, ${money(stats.revenue)} aprobados`, html, has_ai_summary: Boolean(summary) } };"
+      }
+    },
+    {
+      "id": "8f9a0b1c-3d4e-4f60-9b7c-8d9e0f1a0006",
+      "name": "Email seller",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [980, 0],
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": { "appendAttribution": false }
+      },
+      "credentials": { "smtp": { "id": "LibraSmtp0000001", "name": "SMTP" } }
+    }
+  ],
+  "connections": {
+    "Every Monday 8:00": { "main": [[{ "node": "Sales of the last 7 days", "type": "main", "index": 0 }]] },
+    "Run now (test)": { "main": [[{ "node": "Sales of the last 7 days", "type": "main", "index": 0 }]] },
+    "Sales of the last 7 days": { "main": [[{ "node": "AI summary (Gemini)", "type": "main", "index": 0 }]] },
+    "AI summary (Gemini)": { "main": [[{ "node": "Build report", "type": "main", "index": 0 }]] },
+    "Build report": { "main": [[{ "node": "Email seller", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}
+}

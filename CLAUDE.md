@@ -25,6 +25,12 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
    fallback `gemini-flash-lite-latest` → compare amount/reference → `receipt_check`
    {match|review|unverified}. Must never throw: every path ends in "Compare with order".
    Gemini keys start with `AQ.` (new format); `gemini-2.5-*` is not available to this account.
+3. `stale-order-reminder.json` — cron 9:00 + manual trigger: `pending_verification` orders whose
+   `expires_at` falls in the next 24 h, one email per seller (daily window = no "sent" state).
+4. `weekly-sales-report.json` — cron Monday 8:00 + manual trigger: per seller/currency funnel,
+   revenue, top 3 products; Gemini Flash-Lite 3-line summary (optional, report sends without it).
+5. `error-alert.json` — Error Trigger → email `ADMIN_EMAIL`. All other workflows set
+   `settings.errorWorkflow = LibraErrorAlert1`.
 
 ## Scripts
 - `scripts/init-env.sh` — first machine only, creates `.env` with secrets.
@@ -42,4 +48,6 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
 - Never commit `.env`. `N8N_ENCRYPTION_KEY` must be identical across machines.
 - Do not create branches, files or commits in the Libra repo; it is read-only for this project.
 - Dev data uses `example.com` addresses only; never point dev scripts at Libra prod.
-- Planned next: stale-order reminders (cron), weekly sales report (Google Sheets + AI summary).
+- `scripts/run-workflow.sh <id>` runs a workflow via CLI; it needs `N8N_RUNNERS_BROKER_PORT=5690`
+  because the running n8n holds 5679. `scripts/dev-demo-week.sql` approves/ages fake orders for demos.
+- Scope: only this repo and Libra's data. No Telegram/Sheets or other outside channels unless asked.
