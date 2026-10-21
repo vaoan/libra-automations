@@ -1,0 +1,83 @@
+{
+  "id": "LibraOrderNotify1",
+  "name": "Libra — Notify seller of new order / receipt",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "3b8f3c1e-2f0a-4c55-9a51-0d1c2a7f0001",
+      "name": "Libra order event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "6f1d2b9a-8c3e-4f7a-b1d2-5e6f7a8b9c01",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "libra-order-events",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "LibraHookSecret1", "name": "Libra webhook secret" }
+      }
+    },
+    {
+      "id": "3b8f3c1e-2f0a-4c55-9a51-0d1c2a7f0002",
+      "name": "Load order details",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [240, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Returns no row (workflow stops) unless the event is worth notifying.\nselect o.id,\n       o.payment_status,\n       o.total,\n       o.currency,\n       o.transfer_number,\n       o.receipt_url,\n       o.created_at,\n       s.email as seller_email,\n       coalesce(s.display_name, s.email) as seller_name,\n       coalesce(b.display_name, b.email) as buyer_name,\n       coalesce(json_agg(json_build_object('name', p.name_es, 'quantity', oi.quantity, 'unit_price', oi.unit_price)) filter (where oi.id is not null), '[]') as items\nfrom public.orders o\njoin public.user_profiles s on s.id = o.seller_id\njoin public.user_profiles b on b.id = o.user_id\nleft join public.order_items oi on oi.order_id = o.id\nleft join public.products p on p.id = oi.product_id\nwhere o.id = $1::uuid\n  and ($2 = 'order.created' or o.payment_status = 'pending_verification')\ngroup by o.id, s.id, b.id;",
+        "options": {
+          "queryReplacement": "={{ [$json.body.order_id, $json.body.event] }}"
+        }
+      },
+      "credentials": {
+        "postgres": { "id": "LibraDbDev000001", "name": "Libra DB (dev)" }
+      }
+    },
+    {
+      "id": "3b8f3c1e-2f0a-4c55-9a51-0d1c2a7f0003",
+      "name": "Build email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const order = $json;\nconst money = (amount) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: order.currency, minimumFractionDigits: 0 }).format(amount);\nconst isReceipt = order.payment_status === 'pending_verification';\nconst shortId = order.id.slice(0, 8);\n\nconst rows = order.items\n  .map((item) => `<tr><td>${item.name}</td><td align=\"center\">${item.quantity}</td><td align=\"right\">${money(item.unit_price * item.quantity)}</td></tr>`)\n  .join('');\n\nconst subject = isReceipt\n  ? `Comprobante recibido — pedido #${shortId}`\n  : `Nuevo pedido #${shortId} de ${order.buyer_name}`;\n\nconst intro = isReceipt\n  ? `${order.buyer_name} subió el comprobante de pago del pedido <b>#${shortId}</b>. Revísalo y apruébalo o recházalo en Studio.`\n  : `Tienes un pedido nuevo de <b>${order.buyer_name}</b>.`;\n\nconst receipt = isReceipt\n  ? `<p>Número de transferencia: <b>${order.transfer_number ?? '—'}</b></p>`\n  : '';\n\nconst html = `<p>Hola ${order.seller_name},</p>\n<p>${intro}</p>\n<table cellpadding=\"6\" style=\"border-collapse:collapse\" border=\"1\">\n<tr><th align=\"left\">Producto</th><th>Cant.</th><th align=\"right\">Subtotal</th></tr>${rows}\n<tr><td colspan=\"2\"><b>Total</b></td><td align=\"right\"><b>${money(order.total)}</b></td></tr>\n</table>${receipt}\n<p style=\"color:#666\">Mensaje automático de Libra.</p>`;\n\nreturn { json: { to: order.seller_email, subject, html, order_id: order.id, kind: isReceipt ? 'receipt' : 'created' } };"
+      }
+    },
+    {
+      "id": "3b8f3c1e-2f0a-4c55-9a51-0d1c2a7f0004",
+      "name": "Email seller",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [720, 0],
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": { "appendAttribution": false }
+      },
+      "credentials": {
+        "smtp": { "id": "LibraSmtp0000001", "name": "SMTP" }
+      }
+    }
+  ],
+  "connections": {
+    "Libra order event": { "main": [[{ "node": "Load order details", "type": "main", "index": 0 }]] },
+    "Load order details": { "main": [[{ "node": "Build email", "type": "main", "index": 0 }]] },
+    "Build email": { "main": [[{ "node": "Email seller", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}
+}

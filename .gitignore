@@ -1,0 +1,5 @@
+.env
+backups/*
+!backups/.gitkeep
+.DS_Store
+Thumbs.db
