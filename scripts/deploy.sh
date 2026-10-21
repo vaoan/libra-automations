@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Import credentials (built from .env) and every workflow in workflows/ into n8n,
-# then register the webhook target in Libra's database.
+# then install the trigger (libra-db/) and register the webhook target in Libra's database.
 # Safe to re-run: imports overwrite by id, the webhook row is upserted.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
@@ -35,6 +35,9 @@ for wf in workflows/*.json; do
   docker compose exec -T n8n n8n import:workflow --input=/tmp/workflow.json
 done
 docker compose exec -T -u root n8n rm -f /tmp/workflow.json
+
+# Libra's repo is not modified: the trigger SQL lives here and is applied to its database.
+docker exec -i "$LIBRA_DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres < libra-db/order_event_webhooks.sql
 
 docker exec -i "$LIBRA_DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres \
   -v url="$LIBRA_WEBHOOK_URL" -v secret="$LIBRA_WEBHOOK_SECRET" <<'SQL'

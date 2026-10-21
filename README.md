@@ -23,8 +23,9 @@ scripts/activate.sh      # publish workflows
 scripts/test-order.sh    # dev: create a fake order and see the emails
 ```
 
-Requires Libra's local Supabase running (`pnpm supabase:docker start --env dev` in the Libra repo)
-with the `order_event_webhooks` migration applied.
+Requires Libra's local Supabase running (`pnpm supabase:docker start --env dev` in the Libra repo).
+Libra's code is not modified: `deploy.sh` installs the trigger from `libra-db/order_event_webhooks.sql`
+into its database.
 
 ## Backup / move to another machine
 
