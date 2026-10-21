@@ -19,13 +19,21 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
 
 ## Workflows (`workflows/*.json`, source of truth)
 1. `order-notify-seller.json` — email the seller on `order.created` and when a
-   receipt is uploaded (`pending_verification`).
+   receipt is uploaded (`pending_verification`); for receipts it calls workflow 2 first.
+2. `verify-receipt-ai.json` — sub-workflow: download receipt (private `receipts` bucket,
+   `apikey` = local Supabase secret key) → Gemini `gemini-flash-latest` structured JSON →
+   fallback `gemini-flash-lite-latest` → compare amount/reference → `receipt_check`
+   {match|review|unverified}. Must never throw: every path ends in "Compare with order".
+   Gemini keys start with `AQ.` (new format); `gemini-2.5-*` is not available to this account.
 
 ## Scripts
 - `scripts/init-env.sh` — first machine only, creates `.env` with secrets.
 - `scripts/deploy.sh` — builds credentials from `.env`, imports workflows, installs `libra-db/` SQL and registers the webhook in Libra's DB.
 - `scripts/activate.sh` — publishes workflows, restarts n8n, waits until webhooks are live.
-- `scripts/test-order.sh` — DEV ONLY: fake order → shows pg_net deliveries + Mailpit inbox.
+- `scripts/test-order.sh [match|mismatch|missing]` — DEV ONLY: fake order + receipt upload →
+  shows pg_net deliveries + Mailpit inbox. Fixtures from `scripts/make-fixtures.sh` (Chrome headless).
+- Optional keys (`GEMINI_API_KEY`, `LIBRA_SUPABASE_SERVICE_KEY`) may be set in the n8n UI
+  instead; `deploy.sh` skips them when empty so the UI value is kept.
 - `scripts/backup.sh` / `scripts/restore.sh` — migration between machines (Git Bash on Windows).
 
 ## Rules
@@ -34,4 +42,4 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
 - Never commit `.env`. `N8N_ENCRYPTION_KEY` must be identical across machines.
 - Do not create branches, files or commits in the Libra repo; it is read-only for this project.
 - Dev data uses `example.com` addresses only; never point dev scripts at Libra prod.
-- Planned next: AI receipt check (vision), stale-order reminders (cron), weekly sales report.
+- Planned next: stale-order reminders (cron), weekly sales report (Google Sheets + AI summary).

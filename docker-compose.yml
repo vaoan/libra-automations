@@ -50,6 +50,7 @@ services:
       # Workflows read non-secret settings ($env.SMTP_FROM) from here.
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       SMTP_FROM: ${SMTP_FROM}
+      LIBRA_SUPABASE_URL: ${LIBRA_SUPABASE_URL}
     volumes:
       - n8n_data:/home/node/.n8n
 

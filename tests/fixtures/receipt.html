@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Fake transfer receipt from a fictional bank, rendered to PNG by scripts/make-fixtures.sh.
+     Placeholders: {{AMOUNT}} {{REFERENCE}} {{DATE}} -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; width: 420px; font-family: -apple-system, Helvetica, Arial, sans-serif; background: #f2f4f7; }
+  .card { margin: 20px; padding: 24px; background: #fff; border-radius: 16px; }
+  .bank { font-weight: 700; color: #1d4ed8; font-size: 20px; }
+  .ok { margin: 16px 0 4px; color: #15803d; font-weight: 600; }
+  .amount { font-size: 36px; font-weight: 700; margin: 4px 0 20px; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #e5e7eb; font-size: 15px; }
+  .label { color: #6b7280; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="bank">Banco Ejemplo</div>
+    <div class="ok">✔ Transferencia exitosa</div>
+    <div class="amount">$ {{AMOUNT}}</div>
+    <div class="row"><span class="label">Para</span><span>Tienda de prueba</span></div>
+    <div class="row"><span class="label">Cuenta destino</span><span>Ahorros ****4321</span></div>
+    <div class="row"><span class="label">Referencia</span><span>{{REFERENCE}}</span></div>
+    <div class="row"><span class="label">Fecha</span><span>{{DATE}}</span></div>
+  </div>
+</body>
+</html>

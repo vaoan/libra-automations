@@ -22,8 +22,23 @@ const creds = [
   { id: "LibraSmtp0000001", name: "SMTP", type: "smtp",
     data: { host: e.SMTP_HOST, port: Number(e.SMTP_PORT), secure: e.SMTP_SECURE === "true",
             user: e.SMTP_USER, password: e.SMTP_PASSWORD, disableStartTls: e.SMTP_SECURE !== "true" } },
+  { id: "GeminiApiKey0001", name: "Gemini API key", type: "httpHeaderAuth",
+    data: { name: "x-goog-api-key", value: e.GEMINI_API_KEY ?? "" } },
+  { id: "LibraStorageDev1", name: "Libra Storage (dev)", type: "httpHeaderAuth",
+    data: { name: "apikey", value: e.LIBRA_SUPABASE_SERVICE_KEY ?? "" } },
 ];
-process.stdout.write(JSON.stringify(creds));
+// Optional keys may be managed in the n8n UI instead of .env: when empty here,
+// skip the credential so the value saved in n8n is not overwritten.
+const optional = { GeminiApiKey0001: "GEMINI_API_KEY", LibraStorageDev1: "LIBRA_SUPABASE_SERVICE_KEY" };
+const selected = creds.filter((c) => {
+  const key = optional[c.id];
+  if (key && !e[key]) {
+    console.error(`note: ${key} empty in .env — keeping the "${c.name}" credential as set in the n8n UI`);
+    return false;
+  }
+  return true;
+});
+process.stdout.write(JSON.stringify(selected));
 ' > "$tmp/credentials.json"
 
 docker compose cp "$tmp/credentials.json" n8n:/tmp/credentials.json

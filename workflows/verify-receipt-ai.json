@@ -1,0 +1,216 @@
+{
+  "id": "LibraVerifyRcpt1",
+  "name": "Libra — Verify receipt with AI (sub-workflow)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0001",
+      "name": "Receipt input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0002",
+      "name": "Download receipt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.LIBRA_SUPABASE_URL }}/storage/v1/object/receipts/{{ $json.receipt_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "receipt"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LibraStorageDev1",
+          "name": "Libra Storage (dev)"
+        }
+      }
+    },
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0003",
+      "name": "Build Gemini request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Structured output: Gemini must answer with exactly this JSON shape.\nconst schema = {\n  type: 'OBJECT',\n  properties: {\n    is_payment_receipt: { type: 'BOOLEAN' },\n    amount: { type: 'NUMBER', nullable: true },\n    currency: { type: 'STRING', nullable: true },\n    transfer_number: { type: 'STRING', nullable: true },\n    date: { type: 'STRING', nullable: true },\n    bank: { type: 'STRING', nullable: true },\n    recipient: { type: 'STRING', nullable: true },\n  },\n  required: ['is_payment_receipt'],\n};\n\nconst prompt = [\n  'You read payment receipts (bank transfers, Nequi, Daviplata, PSE, etc.), mostly from Colombia.',\n  'Extract the data shown in the image. Do not guess: use null for anything not visible.',\n  'amount: the transferred amount as a plain number (Colombian format uses dots for thousands: \"$ 50.000\" is 50000).',\n  'transfer_number: the reference / approval / transaction number exactly as printed.',\n  'date: ISO 8601 if possible. is_payment_receipt: false if the image is not a payment receipt.',\n].join('\\n');\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'receipt');\nconst mimeType = $input.first().binary.receipt.mimeType;\n\nreturn [{\n  json: {\n    body: {\n      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } }] }],\n      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: schema },\n    },\n  },\n}];"
+      }
+    },
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0004",
+      "name": "Gemini Flash",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -100
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GeminiApiKey0001",
+          "name": "Gemini API key"
+        }
+      }
+    },
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0005",
+      "name": "Gemini Flash-Lite (fallback)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        20
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Gemini request').first().json.body) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GeminiApiKey0001",
+          "name": "Gemini API key"
+        }
+      }
+    },
+    {
+      "id": "9a1c2e3f-4b5d-4e6f-8a7b-1c2d3e4f0006",
+      "name": "Compare with order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Every path ends here: Gemini answer, fallback answer, or an upstream error.\nconst order = $('Receipt input').first().json;\nconst response = $input.first().json;\n\nconst unverified = (reason) => [{ json: { ...order, receipt_check: { status: 'unverified', reasons: [reason], extracted: null, model: null } } }];\n\nconst text = response?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('');\nif (!text) return unverified('No se pudo leer el comprobante automáticamente');\n\nlet extracted;\ntry {\n  extracted = JSON.parse(text);\n} catch {\n  return unverified('La IA devolvió una respuesta inválida');\n}\n\nconst money = (amount) => new Intl.NumberFormat(\"es-CO\", { style: \"currency\", currency: order.currency, minimumFractionDigits: 0 }).format(amount);\nconst normalize = (value) => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');\nconst reasons = [];\n\nif (!extracted.is_payment_receipt) {\n  reasons.push('La imagen no parece un comprobante de pago');\n} else {\n  if (extracted.amount == null) reasons.push('No se ve el monto');\n  else if (Math.abs(extracted.amount - order.total) >= 1) reasons.push(`El monto del comprobante (${money(extracted.amount)}) no coincide con el total del pedido (${money(order.total)})`);\n\n  const declared = normalize(order.transfer_number);\n  const printed = normalize(extracted.transfer_number);\n  if (declared && printed && !printed.includes(declared) && !declared.includes(printed)) {\n    reasons.push(`El número de transferencia del comprobante (${extracted.transfer_number}) no coincide con el que escribió el comprador (${order.transfer_number})`);\n  } else if (declared && !printed) {\n    reasons.push('No se ve el número de transferencia en el comprobante');\n  }\n}\n\nreturn [{\n  json: {\n    ...order,\n    receipt_check: {\n      status: reasons.length === 0 ? 'match' : 'review',\n      reasons,\n      extracted,\n      model: response.modelVersion ?? null,\n    },\n  },\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Receipt input": {
+      "main": [
+        [
+          {
+            "node": "Download receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download receipt": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compare with order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini request": {
+      "main": [
+        [
+          {
+            "node": "Gemini Flash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Flash": {
+      "main": [
+        [
+          {
+            "node": "Compare with order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Flash-Lite (fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Flash-Lite (fallback)": {
+      "main": [
+        [
+          {
+            "node": "Compare with order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}
