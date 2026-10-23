@@ -22,11 +22,16 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
    receipt is uploaded (`pending_verification`); for receipts it calls workflow 2 first.
 2. `verify-receipt-ai.json` — sub-workflow: download receipt (private `receipts` bucket,
    `apikey` = local Supabase secret key) → Gemini `gemini-flash-latest` structured JSON →
-   fallback `gemini-flash-lite-latest` → compare amount/reference → `receipt_check`
-   {match|review|unverified}. Must never throw: every path ends in "Compare with order".
+   fallback `gemini-flash-lite-latest` → compare amount/currency/reference/date → history
+   (reused reference/file, destination account) → `receipt_check` {match|review|unverified}
+   → audit row in Libra table `integration_receipt_checks` (`libra-db/receipt_checks.sql`).
+   Must never throw: history/audit nodes continue on error. ✅ is never proof of payment; emails
+   always tell the seller to confirm in their bank. See `docs/receipt-verification.md`.
+   Tests: `node --test tests/*.test.mjs` runs the Code nodes offline.
    Gemini keys start with `AQ.` (new format); `gemini-2.5-*` is not available to this account.
 3. `stale-order-reminder.json` — cron 9:00 + manual trigger: `pending_verification` orders whose
    `expires_at` falls in the next 24 h, one email per seller (daily window = no "sent" state).
+   Same triggers purge receipt-check audit rows older than 12 months.
 4. `weekly-sales-report.json` — cron Monday 8:00 + manual trigger: per seller/currency funnel,
    revenue, top 3 products; Gemini Flash-Lite 3-line summary (optional, report sends without it).
 5. `error-alert.json` — Error Trigger → email `ADMIN_EMAIL`. All other workflows set
