@@ -41,6 +41,8 @@ services:
       GENERIC_TIMEZONE: America/Bogota
       TZ: America/Bogota
       N8N_RUNNERS_ENABLED: "true"
+      # Receipt check fingerprints files with SHA-256 (require("crypto") in a Code node).
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
       N8N_SECURE_COOKIE: "false"
