@@ -4,9 +4,10 @@
 #   1. create the order (fires order.created)
 #   2. upload a receipt image to the private receipts bucket
 #   3. move the order to pending_verification (fires order.status_changed → AI check)
-# Usage: scripts/test-order.sh [match|mismatch|missing|reused]   (default: match)
+# Usage: scripts/test-order.sh [match|mismatch|missing|reused|wrong-account]   (default: match)
 #   missing: no file is uploaded, so the AI check must fall back to "unverified".
 #   reused: run after "match" — uploads the same receipt again, so it must be flagged as reused.
+#   wrong-account: the order's payment method shows another account than the one on the receipt.
 # Every other variant first clears earlier test orders' references and checks, so the fixed
 # reference printed on the fixtures does not count as reused.
 # Add "live" as 2nd arg to watch it on the n8n canvas: first click "Execute" in the
@@ -18,7 +19,8 @@ cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
 
 variant=${1:-match}
-fixture="tests/fixtures/receipt-${variant/reused/match}.png"
+case $variant in reused|wrong-account) fixture=tests/fixtures/receipt-match.png ;; *) fixture="tests/fixtures/receipt-$variant.png" ;; esac
+method=00000000-0000-4000-c000-00000000000$([ "$variant" = wrong-account ] && echo 2 || echo 1)
 [ "$variant" = missing ] || [ -f "$fixture" ] || { echo "Missing $fixture — run scripts/make-fixtures.sh" >&2; exit 1; }
 [ -n "${LIBRA_SUPABASE_SERVICE_KEY:-}" ] || { echo "LIBRA_SUPABASE_SERVICE_KEY is empty in .env" >&2; exit 1; }
 
@@ -33,11 +35,11 @@ delete from public.integration_receipt_checks where order_id in (select id from 
 update public.orders set transfer_number = null where seller_id = '00000000-0000-4000-a000-000000000001' and transfer_number = 'TEST-123456';
 SQL
 fi
-order_id=$(sql <<'SQL'
+order_id=$(sql -v method="$method" <<'SQL'
 -- created_at = the date printed on the fixtures, so the "receipt older than the order" check passes.
 with new_order as (
-  insert into public.orders (user_id, seller_id, total, currency, payment_status, transfer_number, created_at)
-  values ('00000000-0000-4000-a000-000000000002', '00000000-0000-4000-a000-000000000001', 50000, 'COP', 'awaiting_payment', 'TEST-123456', '2026-10-21 08:00:00-05')
+  insert into public.orders (user_id, seller_id, total, currency, payment_status, transfer_number, created_at, payment_method_id)
+  values ('00000000-0000-4000-a000-000000000002', '00000000-0000-4000-a000-000000000001', 50000, 'COP', 'awaiting_payment', 'TEST-123456', '2026-10-21 08:00:00-05', :'method')
   returning id
 ), item as (
   insert into public.order_items (order_id, product_id, quantity, unit_price, currency)

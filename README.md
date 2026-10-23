@@ -74,6 +74,7 @@ scripts/test-order.sh match           # fake order + matching receipt  → ✅ e
 scripts/test-order.sh mismatch        # receipt with the wrong amount  → ⚠️ email
 scripts/test-order.sh missing         # receipt can't be downloaded    → ❔ email
 scripts/test-order.sh reused          # after "match": same receipt again → ⚠️ "ya se usó" email
+scripts/test-order.sh wrong-account   # paid to another account than the seller's → ⚠️ email
 scripts/test-order.sh match live      # same, but watch it on the n8n canvas (click "Execute" first)
 scripts/run-workflow.sh LibraStaleRemind1   # run the daily reminder now
 scripts/run-workflow.sh LibraWeeklyRpt01    # run the weekly report now

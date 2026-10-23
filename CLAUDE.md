@@ -43,7 +43,7 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
 - `scripts/init-env.sh` — first machine only, creates `.env` with secrets.
 - `scripts/deploy.sh` — builds credentials from `.env`, imports workflows, installs `libra-db/` SQL and registers the webhook in Libra's DB.
 - `scripts/activate.sh` — publishes workflows, restarts n8n, waits until webhooks are live.
-- `scripts/test-order.sh [match|mismatch|missing]` — DEV ONLY: fake order + receipt upload →
+- `scripts/test-order.sh [match|mismatch|missing|reused|wrong-account]` — DEV ONLY: fake order + receipt upload →
   shows pg_net deliveries + Mailpit inbox. Fixtures from `scripts/make-fixtures.sh` (Chrome headless).
 - Optional keys (`GEMINI_API_KEY`, `LIBRA_SUPABASE_SERVICE_KEY`) may be set in the n8n UI
   instead; `deploy.sh` skips them when empty so the UI value is kept.
