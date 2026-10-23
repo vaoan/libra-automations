@@ -10,6 +10,13 @@ set -a; . ./.env; set +a
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+# Ids of credentials already in n8n: an optional key left empty in .env keeps its UI value,
+# but a missing credential is still created (empty) so it shows up in the UI to be filled in.
+docker compose exec -T n8n n8n export:credentials --all --output=/tmp/existing.json >/dev/null 2>&1 || true
+existing=$(docker compose exec -T n8n cat /tmp/existing.json 2>/dev/null | node -pe 'JSON.parse(require("fs").readFileSync(0)).map((c) => c.id).join(",")' 2>/dev/null || true)
+docker compose exec -T -u root n8n rm -f /tmp/existing.json
+export EXISTING_CREDENTIALS=$existing
+
 # Credentials are generated here so no secret is ever stored in the repo.
 node -e '
 const e = process.env;
@@ -28,11 +35,16 @@ const creds = [
     data: { name: "apikey", value: e.LIBRA_SUPABASE_SERVICE_KEY ?? "" } },
 ];
 // Optional keys may be managed in the n8n UI instead of .env: when empty here,
-// skip the credential so the value saved in n8n is not overwritten.
+// skip the credential if it already exists so the value saved in n8n is not overwritten.
+const existing = new Set((e.EXISTING_CREDENTIALS ?? "").split(",").filter(Boolean));
 const optional = { GeminiApiKey0001: "GEMINI_API_KEY", LibraStorageDev1: "LIBRA_SUPABASE_SERVICE_KEY" };
 const selected = creds.filter((c) => {
   const key = optional[c.id];
   if (key && !e[key]) {
+    if (!existing.has(c.id)) {
+      console.error(`note: ${key} empty in .env — creating an empty "${c.name}" credential; fill it in the n8n UI`);
+      return true;
+    }
     console.error(`note: ${key} empty in .env — keeping the "${c.name}" credential as set in the n8n UI`);
     return false;
   }
