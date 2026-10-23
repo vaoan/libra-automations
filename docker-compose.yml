@@ -26,7 +26,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "127.0.0.1:5678:5678"
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -57,12 +57,12 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
-  # Local inbox for dev: every email n8n sends lands here (UI on :8025).
+  # Local inbox for dev: every email n8n sends lands here (UI on :${MAILPIT_PORT:-8025}).
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
 
 volumes:
   postgres_data:

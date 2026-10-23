@@ -3,3 +3,4 @@ backups/*
 !backups/.gitkeep
 .DS_Store
 Thumbs.db
+ACCESO-N8N.txt

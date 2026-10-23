@@ -8,7 +8,9 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
 - Emails/messages to Libra users are in Spanish.
 
 ## Architecture
-- `docker-compose.yml`: n8n (127.0.0.1:5678) + Postgres 17 + Mailpit (dev inbox, :8025).
+- `docker-compose.yml`: n8n (127.0.0.1:5678) + Postgres 17 + Mailpit (dev inbox, :8025). Host ports
+  come from `N8N_PORT`/`MAILPIT_PORT` in `.env` (this Mac uses 5680/8026: 5678 is another n8n).
+  Local login for the n8n UI is in `ACCESO-N8N.txt` (git-ignored).
 - Libra's dev Supabase runs from the Libra repo: `pnpm supabase:docker start --env dev`
   (API :54331, DB :54332, Studio :54333). n8n reaches it via `host.docker.internal`.
 - Event flow: Libra `orders` trigger `orders_notify_event` → `pg_net` POST →

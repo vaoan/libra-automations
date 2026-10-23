@@ -72,15 +72,15 @@ fi
 echo "Waiting for n8n (AI check can take ~10-20 s)..."
 for _ in $(seq 1 30); do
   sleep 2
-  count=$(curl -s "http://localhost:8025/api/v1/search?query=${order_id:0:8}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).messages_count')
+  count=$(curl -s "http://localhost:${MAILPIT_PORT:-8025}/api/v1/search?query=${order_id:0:8}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).messages_count')
   [ "$count" -ge 2 ] && break
 done
 
 echo "Webhook deliveries (pg_net, latest first):"
 sql -c "select id, status_code, coalesce(error_msg, '') from net._http_response order by created desc limit 2;"
 
-echo "Emails for this order in Mailpit (http://localhost:8025):"
-curl -s "http://localhost:8025/api/v1/search?query=${order_id:0:8}" | node -e '
+echo "Emails for this order in Mailpit (http://localhost:${MAILPIT_PORT:-8025}):"
+curl -s "http://localhost:${MAILPIT_PORT:-8025}/api/v1/search?query=${order_id:0:8}" | node -e '
 let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
   for (const m of JSON.parse(s).messages) console.log(`- ${m.To[0].Address}: ${m.Subject}`);
 });'
