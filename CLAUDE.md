@@ -47,6 +47,10 @@ Self-hosted n8n Community in Docker, $0/month. Portfolio project for n8n experie
   shows pg_net deliveries + Mailpit inbox. Fixtures from `scripts/make-fixtures.sh` (Chrome headless).
 - Optional keys (`GEMINI_API_KEY`, `LIBRA_SUPABASE_SERVICE_KEY`) may be set in the n8n UI
   instead; `deploy.sh` skips them when empty so the UI value is kept.
+- `scripts/test-receipts.sh [case ...]` — DEV ONLY e2e fraud suite (renders receipts with Chrome, asserts
+  the audit verdict + reason per case, and that each submission yields exactly one check/email).
+- Branch on the webhook **event**, not the order's current state: order.created and the receipt
+  event often arrive together, and the created run must not send a second receipt email.
 - `scripts/backup.sh` / `scripts/restore.sh` — migration between machines (Git Bash on Windows).
 
 ## Rules

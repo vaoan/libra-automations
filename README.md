@@ -82,6 +82,10 @@ scripts/run-workflow.sh LibraWeeklyRpt01    # run the weekly report now
 
 Offline tests of the receipt-check logic (no n8n or keys needed): `node --test tests/*.test.mjs`.
 
+End-to-end fraud suite against the running stack and real Gemini (12 cases: old/future dates, wrong
+reference/currency/amount, not a receipt, prompt injection in the image, HTML injection, cross-seller
+reuse with a re-screenshot, evidence resubmission, PDF, no duplicate emails): `scripts/test-receipts.sh`.
+
 Test receipts are rendered from `tests/fixtures/receipt.html` (fictional bank) by `scripts/make-fixtures.sh`.
 
 ## Backup / move to another machine

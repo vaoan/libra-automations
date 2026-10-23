@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- Fake transfer receipt from a fictional bank, rendered to PNG by scripts/make-fixtures.sh.
-     Placeholders: {{AMOUNT}} {{REFERENCE}} {{DATE}} -->
+     Placeholders: {{AMOUNT}} {{REFERENCE}} {{DATE}} {{BANK}} {{CURRENCY}} {{ACCOUNT}} {{NOTE}} -->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -12,17 +12,19 @@
   .amount { font-size: 36px; font-weight: 700; margin: 4px 0 20px; }
   .row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #e5e7eb; font-size: 15px; }
   .label { color: #6b7280; }
+  .note { margin-top: 12px; font-size: 13px; color: #374151; }
 </style>
 </head>
 <body>
   <div class="card">
-    <div class="bank">Banco Ejemplo</div>
+    <div class="bank">{{BANK}}</div>
     <div class="ok">✔ Transferencia exitosa</div>
-    <div class="amount">$ {{AMOUNT}}</div>
+    <div class="amount">{{CURRENCY}} {{AMOUNT}}</div>
     <div class="row"><span class="label">Para</span><span>Tienda de prueba</span></div>
-    <div class="row"><span class="label">Cuenta destino</span><span>Ahorros ****4321</span></div>
+    <div class="row"><span class="label">Cuenta destino</span><span>Ahorros ****{{ACCOUNT}}</span></div>
     <div class="row"><span class="label">Referencia</span><span>{{REFERENCE}}</span></div>
     <div class="row"><span class="label">Fecha</span><span>{{DATE}}</span></div>
+    <div class="note">{{NOTE}}</div>
   </div>
 </body>
 </html>

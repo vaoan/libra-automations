@@ -12,6 +12,7 @@ trap 'rm -rf "$tmp"' EXIT
 render() {
   local name=$1 amount=$2 reference=$3
   sed -e "s/{{AMOUNT}}/$amount/" -e "s/{{REFERENCE}}/$reference/" -e "s/{{DATE}}/21 oct 2026, 10:42 a. m./" \
+      -e "s/{{BANK}}/Banco Ejemplo/" -e "s/{{CURRENCY}}/\$/" -e "s/{{ACCOUNT}}/4321/" -e "s/{{NOTE}}//" \
     tests/fixtures/receipt.html > "$tmp/$name.html"
   "$chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=460,520 \
     --screenshot="$PWD/tests/fixtures/$name.png" "file://$tmp/$name.html" >/dev/null 2>&1
