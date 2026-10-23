@@ -67,11 +67,24 @@
         "options": { "appendAttribution": false }
       },
       "credentials": { "smtp": { "id": "LibraSmtp0000001", "name": "SMTP" } }
+    },
+    {
+      "id": "7e8f9a0b-2c3d-4e5f-8a6b-7c8d9e0f0006",
+      "name": "Purge old receipt checks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [260, 240],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Retention for the receipt-check audit log (12 months, see libra-db/receipt_checks.sql).\nselect public.purge_integration_receipt_checks() as purged;",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "LibraDbDev000001", "name": "Libra DB (dev)" } }
     }
   ],
   "connections": {
-    "Every day 9:00": { "main": [[{ "node": "Receipts expiring in 24 h", "type": "main", "index": 0 }]] },
-    "Run now (test)": { "main": [[{ "node": "Receipts expiring in 24 h", "type": "main", "index": 0 }]] },
+    "Every day 9:00": { "main": [[{ "node": "Receipts expiring in 24 h", "type": "main", "index": 0 }, { "node": "Purge old receipt checks", "type": "main", "index": 0 }]] },
+    "Run now (test)": { "main": [[{ "node": "Receipts expiring in 24 h", "type": "main", "index": 0 }, { "node": "Purge old receipt checks", "type": "main", "index": 0 }]] },
     "Receipts expiring in 24 h": { "main": [[{ "node": "Build reminder", "type": "main", "index": 0 }]] },
     "Build reminder": { "main": [[{ "node": "Email seller", "type": "main", "index": 0 }]] }
   },
