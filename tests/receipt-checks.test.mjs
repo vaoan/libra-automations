@@ -114,10 +114,19 @@ test('history query failure (error item) never breaks the verdict', async () => 
 test('seller email escapes text read from the image and asks to confirm in the bank', async () => {
   const r = await check({ ...good, bank: '<img src=x onerror=alert(1)>' });
   const email = await run(notify, 'Build email', {
-    ...r.returned, seller_email: 's@example.com', seller_name: 'Tienda', buyer_name: 'Ana <b>', items: [{ name: 'Sticker', quantity: 1, unit_price: 50000 }],
+    ...r.returned, event: 'order.status_changed', seller_email: 's@example.com', seller_name: 'Tienda', buyer_name: 'Ana <b>', items: [{ name: 'Sticker', quantity: 1, unit_price: 50000 }],
   });
   assert.ok(!email.json.html.includes('<img'));
   assert.ok(email.json.html.includes('&lt;img'));
   assert.ok(email.json.html.includes('confirma que el dinero ya entró'));
   assert.match(email.json.subject, /^✅ Datos OK/);
+});
+
+test('order.created processed after the receipt was uploaded still sends "new order", not a receipt email', async () => {
+  const late = { ...order, event: 'order.created', seller_email: 's@example.com', seller_name: 'Tienda', buyer_name: 'Ana', items: [] };
+  const email = await run(notify, 'Build email', late);
+  assert.equal(email.json.kind, 'created');
+  assert.match(email.json.subject, /^Nuevo pedido/);
+  const ifNode = notify.nodes.find((n) => n.name === 'Receipt uploaded?');
+  assert.match(ifNode.parameters.conditions.conditions[0].leftValue, /event === 'order\.status_changed'/);
 });
